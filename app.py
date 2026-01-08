@@ -72,6 +72,17 @@ with col1:
             )
         st.success("Scraping complete")
 
+if "scraping" in st.session_state and st.session_state.scraping:
+    total_jobs = 0
+    for where in st.session_state.scraping:
+        total_jobs += len(st.session_state.scraping[where]['results'])
+
+    with st.sidebar:
+        st.header("Session Stats")
+        st.metric(label="Scraped Jobs", value=total_jobs)
+        st.divider()
+    
+
 with col2:
     if st.button("🧠 Score jobs", width='stretch'):
         if "scraping" not in st.session_state:
