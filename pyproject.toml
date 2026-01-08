@@ -1,0 +1,58 @@
+[project]
+name = "llm-job-fit-analyzer"
+version = "0.1.0"
+description = "Streamlit app for scraping job adverts and scoring them against career preferences using local LLMs."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+
+authors = [
+  { name = "Pedro Junio" }
+]
+
+keywords = [
+  "llm",
+  "jobs",
+  "streamlit",
+  "ollama",
+  "career",
+  "nlp",
+]
+
+dependencies = [
+  "streamlit",
+  "pandas",
+  "numpy",
+  "tqdm",
+  "langchain-ollama",
+  "itables",
+  "google.genai",
+  "pydantic-settings",
+  "serpapi",
+  "selenium",
+  "beautifulsoup4",
+]
+
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[dependency-groups]
+dev = [
+  "ruff",
+  "black",
+  "mypy",
+  "ipykernel",
+]
+
+## Tooling configuration
+
+### Ruff (linting)
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.isort]
+known-first-party = ["scrapers", "llama_prompt"]

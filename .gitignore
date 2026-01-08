@@ -1,0 +1,9 @@
+search_results/
+data/
+.prompt.txt
+.env
+.venv/
+**/.ipynb_checkpoints
+**/__pycache__
+**/*egg-info*
+uv.lock
