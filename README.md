@@ -118,5 +118,3 @@ You are a Lead Technical Headhunter specializing in [YOUR_FIELDS_OF_CHOICE_HERE]
 ### Further Work
 
 Possibly more scrapers, though unlikely as Google does a decent job and scraping generally takes too much time and effort to maintain. 
-
-Support for adding more LLMs. At the moment, this only uses a LLama model, but adding more should be simple. For now I would suggest grabbing the (free) $300 in credits from Gemini as that will beat any local LLM for this task.
