@@ -8,10 +8,10 @@ Tired of reading job descriptions that feel like a recipe blog post. We’ve all
 
 What this isn't intended for:
 
-To entirely automate the job search process. This tool is intended to shortlist job listings, with the user making the final selection and applying for the themselves.
+To entirely automate the job search process. This tool is intended to shortlist job listings, with the user making the final selection and applying for the job themselves.
 
 ## Features
-- **Hybrid LLM Support:** Seamlessly switch between local models (Ollama) and high-performance cloud models (Gemini 3).
+- **Hybrid LLM Support:** Switch between local models (Ollama) and high-performance cloud models (Gemini 3).
 - **Smart Caching:** Local JSON caching avoids re-scoring jobs you've already analyzed (0ms latency for known jobs).
 - **URL Normalization:** Automatically strips tracking junk (UTM tags, trk IDs) to ensure stable cache hits.
 - **Incremental Saving:** Updates your local database after *every* successful score to protect against crashes.
@@ -21,7 +21,7 @@ To entirely automate the job search process. This tool is intended to shortlist 
 
 ## Installation & Setup
 
-This project uses [uv](https://docs.astral.sh/uv/), an extremely fast Python package manager.
+This project uses [uv](https://docs.astral.sh/uv/)
 
 ### 1. Prerequisites
 - **Python 3.12+**
@@ -33,7 +33,7 @@ This project uses [uv](https://docs.astral.sh/uv/), an extremely fast Python pac
 uv sync
 
 # Use 'uv run' to execute the app locally within the managed environment
-uv run streamlit run app.py --server.headless true --server.address=127.0.0.1
+uv run streamlit run app.py --server.headless true --server.address=127.0.0.6
 
 ### `.env` Template
 
