@@ -2,7 +2,13 @@
 
 An intelligent job search assistant that scrapes job advertisements and uses **LLMs (Gemini & Ollama)** to score them against your unique career profile. It features local caching to save costs and an incremental-save mechanism to prevent data loss.
 
+Why I have created this tool:
 
+Tired of reading job descriptions that feel like a recipe blog post. We’ve all seen them: the job ads that spend ten paragraphs detailing the company’s "inspirational founding story" and the CEO's self-discovery trip to Peru before finally mentioning they need a Java dev. If you’re tired of hunting for actual technical requirements through a forest of corporate buzzwords, or companies that can't even describe what they need, this tool might be for you.
+
+What this isn't intended for:
+
+To entirely automate the job search process. This tool is intended to shortlist job listings, with the user making the final selection and applying for the themselves.
 
 ## Features
 - **Hybrid LLM Support:** Seamlessly switch between local models (Ollama) and high-performance cloud models (Gemini 3).
