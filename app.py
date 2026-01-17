@@ -1,11 +1,27 @@
 import streamlit as st
 import pandas as pd
-import webbrowser
 from time import sleep
+import ast
 
 from config.settings import settings
 from services.scraping import JobScraper
 from services.scoring import JobScorer 
+
+
+def clean_list(value):
+    """
+    Safely converts string representations of lists (e.g., from CSV/JSON) 
+    back into actual Python lists for the UI.
+    """
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str) and value.strip().startswith('['):
+        try:
+            # Safely parse the string "[...]" into a list
+            return ast.literal_eval(value)
+        except (ValueError, SyntaxError):
+            return [value]
+    return [value] if value and str(value).lower() != 'nan' else []
 
 st.set_page_config(
     page_title=settings.app_name,
@@ -120,7 +136,7 @@ with col2:
 # --- RESULTS DISPLAY ---
 if "df" in st.session_state:
     df = st.session_state.df.copy()
-    
+
     # Clean and sort
     for col in df.columns:
         df[col] = df[col].apply(lambda x: str(x) if isinstance(x, (dict, list)) else x)
@@ -131,18 +147,71 @@ if "df" in st.session_state:
     # Filter keywords
     if exclude_title_keys:
         pattern = "|".join(k.lower() for k in exclude_title_keys if k.strip())
-
         df = df[~df["job_title"].str.lower().str.contains(pattern, na=False)]
 
-    st.subheader("📊 Ranked Jobs")
-    st.dataframe(df, width='stretch', height=600)
+    # --- TOP METRICS ---
+    cols = st.columns(4)
+    with cols[0]:
+        st.metric("Total Jobs Found", len(df))
+    with cols[1]:
+        high_fit = len(df[df["overall_fit"] >= 8])
+        st.metric("High Fit (8+)", high_fit, delta=f"{high_fit} new")
+    with cols[2]:
+        avg_score = df["overall_fit"].mean()
+        st.metric("Avg. Match Score", f"{avg_score:.1f}/10")
+    with cols[3]:
+        # Count unique companies to see market diversity
+        st.metric("Unique Companies", df["company"].nunique())
 
-    # Browser Tool
-    if not df.empty:
-        st.divider()
-        st.subheader("🌐 Action Center")
-        n_open = st.number_input("Open top N jobs", 1, 50, 5)
-        if st.button("Open in browser"):
-            for link in df.head(n_open)["job_url"]:
-                webbrowser.open_new_tab(link)
-                sleep(0.5)
+
+    # --- ENHANCED DATAFRAME ---
+    st.subheader("🚀 High-Priority Matches")
+
+    # Configure specific columns for better UX
+    config = {
+        "job_title": st.column_config.TextColumn("Role", width="large", help="The title of the position"),
+        "overall_fit": st.column_config.ProgressColumn(
+            "Match Quality",
+            help="LLM-derived fit score based on your RSE/HPC profile",
+            min_value=0,
+            max_value=10,
+            format="%d/10",
+            color="green" # You can use conditional logic here too
+        ),
+        "company": st.column_config.TextColumn("Organization"),
+        "job_url": st.column_config.LinkColumn("Apply", display_text="Open Job ↗"),
+        "where": st.column_config.TextColumn("Platform", width="small"),
+    }
+
+    cols_at_front = ["job_title", "overall_fit", "company", "job_url"]
+    all_cols = df.columns.tolist()
+    remaining_cols = [c for c in all_cols if c not in cols_at_front]
+    ordered_list = cols_at_front + remaining_cols
+
+    # Hide internal columns that clutter the view (like IDs, raw JSON, etc)
+    # This assumes you have columns like 'raw_reasoning' or 'id'
+    display_df = df[ordered_list].copy()
+
+    st.dataframe(
+        display_df,
+        column_config=config,
+        use_container_width=True,
+        hide_index=True,
+        height=400
+    )
+    
+    # --- LAYER 3: DEEP TRIAGE CARDS ---
+    st.subheader("🔍 Technical Match Analysis")
+    for i, row in df.head(5).iterrows():
+        color = "green" if row['overall_fit'] >= 8 else "orange"
+        with st.expander(f":{color}[**{row['overall_fit']}/10**] — **{row['job_title']}** ({row.get('engagement_type', 'N/A')})"):
+            st.write(f"**The Gist:** {row.get('triage_summary', '...')}")
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("✅ **Technical Pros**")
+                for p in clean_list(row.get('technical_pros')): st.caption(f"• {p}")
+            with c2:
+                st.markdown("⚠️ **Risks / Red Flags**")
+                st.caption(row.get('red_flags', 'None identified'))
+                for r in clean_list(row.get('risk_factors')): st.caption(f"• {r}")
