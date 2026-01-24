@@ -25,11 +25,9 @@ dependencies = [
   "numpy",
   "tqdm",
   "langchain-ollama",
-  "itables",
   "google.genai",
   "pydantic-settings",
   "serpapi",
-  "selenium",
   "beautifulsoup4",
 ]
 

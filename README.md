@@ -1,3 +1,6 @@
+[![Build Status](https://codeberg.org/pj_bin/llm_job_fit_analyzer/badges/workflows/deploy.yaml/badge.svg)](https://codeberg.org/pj_bin/llm_job_fit_analyzer/actions)
+
+
 # LLM Job Fit Analyzer
 
 An intelligent job search assistant that scrapes job advertisements and uses **LLMs (Gemini & Ollama)** to score them against your unique career profile. It features local caching to save costs and an incremental-save mechanism to prevent data loss.
@@ -57,7 +60,7 @@ GEMINI_DEFAULT_MODEL=gemini-3-flash-preview
 # --- Scraping Configuration ---
 # Get your key at: https://serpapi.com/
 SERPAPI_KEY=YOUR_SERP_API_KEY_HERE
-DEFAULT_SEARCH_PAGES=10
+DEFAULT_SEARCH_PAGES=8
 USE_LAST_SCRAPE=true
 
 # Search Query Configuration (JSON format)

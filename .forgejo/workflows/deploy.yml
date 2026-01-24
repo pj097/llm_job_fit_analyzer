@@ -1,0 +1,35 @@
+name: Deploy Job Search Demo
+on: [push, pull_request]
+
+jobs:
+  build-and-deploy:
+    # 1. Use a specific label to target YOUR runner only
+    runs-on: docker
+    container:
+      image: node:20-bookworm
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Prepare Static Site
+        run: |
+          mkdir -p deploy
+          cp app.py deploy/
+          cp mock_build/index.html deploy/
+          cp mock_build/mock_app.py deploy/
+          cp mock_build/demo_data.json deploy/
+
+      - name: Push to Pages Branch
+        env:
+          # Use the built-in token Forgejo provides for the action 
+          GITHUB_TOKEN: ${{ secrets.PAGES_TOKEN }}
+        run: |
+          cd deploy/
+          git init --initial-branch=main
+          git config user.name "Forgejo Action"
+          git config user.email "actions@vectorfoundry.co.uk"
+          git add .
+          git commit -m "Deploy demo"
+          # Securely push using the secret token in Codeberg
+          git push --force https://${{ github.actor }}:${{ secrets.PAGES_TOKEN }}@codeberg.org/${{ github.repository }}.git main:pages
