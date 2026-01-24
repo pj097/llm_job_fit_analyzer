@@ -14,11 +14,11 @@ jobs:
 
       - name: Prepare Static Site
         run: |
+          cd mock_build
+          python3 build_html.py
+          cd ..
           mkdir -p deploy
-          cp app.py deploy/
-          cp mock_build/index.html deploy/
-          cp mock_build/mock_app.py deploy/
-          cp mock_build/demo_data.json deploy/
+          mv mock_build/index.html deploy/
 
       - name: Push to Pages Branch
         env:
