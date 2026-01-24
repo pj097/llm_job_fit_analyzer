@@ -1,6 +1,3 @@
-[![Build Status](https://codeberg.org/pj_bin/llm_job_fit_analyzer/badges/workflows/deploy.yaml/badge.svg)](https://codeberg.org/pj_bin/llm_job_fit_analyzer/actions)
-
-
 # LLM Job Fit Analyzer
 
 An intelligent job search assistant that scrapes job advertisements and uses **LLMs (Gemini & Ollama)** to score them against your unique career profile. It features local caching to save costs and an incremental-save mechanism to prevent data loss.

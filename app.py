@@ -221,8 +221,7 @@ if "df" in st.session_state:
             help="LLM-derived fit score based on your RSE/HPC profile",
             min_value=0,
             max_value=10,
-            format="%d/10",
-            color="green" # You can use conditional logic here too
+            format="%d/10"
         ),
         "company": st.column_config.TextColumn("Organization"),
         "job_url": st.column_config.LinkColumn("Apply", display_text="Open Job ↗"),

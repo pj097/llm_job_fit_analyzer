@@ -1,5 +1,6 @@
 search_results/
 data/
+mock_build/index.html
 .prompt.txt
 .env
 .venv/

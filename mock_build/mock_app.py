@@ -75,34 +75,4 @@ sys.modules['services.scraping'] = mock_scraping_mod
 # Make it believe the lie above, and hopefully this import will succeed in the browser!
 with open('app.py', 'r') as f:
     code = f.read()
-
-# These replacements fix the "Version Gap" issues in stlite on-the-fly
-def clean_code(text):
-    # Fix Buttons
-    text = re.sub(
-        r"width\s*=\s*['\"]stretch['\"]", 
-        "use_container_width=True", 
-        text
-    )
-    
-    # Remove problematic keywords (and the preceding comma/whitespace)
-    keywords = [
-        "accept_new_options",
-        "color",
-        "width",
-        "height",
-        "hide_index"
-    ]
-    for kw in keywords:
-        # This regex looks for: 
-        # 1. A comma 
-        # 2. Any amount of whitespace/newlines (\s*)
-        # 3. The keyword + equal sign + any value until the next comma or closing paren
-        # Note: This is a simplified version for a demo environment
-        pattern = rf",\s*{kw}\s*=\s*[^,)]+"
-        text = re.sub(pattern, "", text)
-    
-    return text
-
-stlite_compatible_code = clean_code(code)
-exec(stlite_compatible_code, globals())
+exec(code, globals())
