@@ -3,7 +3,6 @@ on: [push, pull_request]
 
 jobs:
   build-and-deploy:
-    # 1. Use a specific label to target YOUR runner only
     runs-on: docker
     container:
       image: node:20-bookworm
@@ -11,6 +10,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          clean: true  
+          fetch-depth: 0 
 
       - name: Prepare Static Site
         run: |
@@ -22,7 +24,6 @@ jobs:
 
       - name: Push to Pages Branch
         env:
-          # Use the built-in token Forgejo provides for the action 
           GITHUB_TOKEN: ${{ secrets.PAGES_TOKEN }}
         run: |
           cd deploy/
@@ -33,3 +34,29 @@ jobs:
           git commit -m "Deploy demo"
           # Securely push using the secret token in Codeberg
           git push --force https://${{ github.actor }}:${{ secrets.PAGES_TOKEN }}@codeberg.org/${{ github.repository }}.git main:pages
+
+      - name: Sync Demo to Main Website Subfolder
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          MAIN_SITE_TOKEN: ${{ secrets.VECTOR_PAGES_DEPLOY }}
+        run: |
+          # 1. Clone the main repo
+          git clone --depth 1 --branch pages https://pj_bin:${{ env.MAIN_SITE_TOKEN }}@codeberg.org/pj_bin/vector_foundry.git main_site_temp
+          
+          # 2. Setup the path
+          DEST_DIR="main_site_temp/demos/vector-pathfinder"
+          mkdir -p "$DEST_DIR"
+          
+          # 3. Copy ONLY the specific file
+          cp deploy/index.html "$DEST_DIR/"
+          
+          # 4. Commit ONLY that specific directory
+          cd main_site_temp
+          git config user.name "Vector Foundry Action"
+          git config user.email "actions@vectorfoundry.co.uk"
+          
+          # This tells git: "Only track changes inside the demos folder"
+          git add demos/vector-pathfinder/
+          
+          git commit -m "Update vector-pathfinder demo"
+          git push origin pages

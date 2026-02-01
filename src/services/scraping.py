@@ -3,7 +3,7 @@ import datetime
 from pathlib import Path
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
-from scrapers import google_scraper, ecmwf_scraper
+from scrapers import google_scraper
 from config.settings import settings
 
 class JobScraper:
