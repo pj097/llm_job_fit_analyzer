@@ -37,6 +37,7 @@ def build():
       import {{ mount }} from "https://cdn.jsdelivr.net/npm/@stlite/browser@1.0.0/build/stlite.js";
       
       mount({{
+        theme: {{base: "dark"}},
         requirements: ["pandas"],
         entrypoint: "mock_app.py",
         files: {files_json}
