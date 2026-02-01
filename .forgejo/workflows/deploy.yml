@@ -12,7 +12,8 @@ jobs:
         uses: actions/checkout@v4
         with:
           clean: true  
-          fetch-depth: 0 
+          persist-credentials: false
+          fetch-depth: 0
 
       - name: Prepare Static Site
         run: |
@@ -36,9 +37,9 @@ jobs:
           git push --force https://${{ github.actor }}:${{ secrets.PAGES_TOKEN }}@codeberg.org/${{ github.repository }}.git main:pages
 
       - name: Sync Demo to Main Website Subfolder
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         env:
-          MAIN_SITE_TOKEN: ${{ secrets.VECTOR_PAGES_DEPLOY }}
+          MAIN_SITE_TOKEN: ${{ secrets.JOB_DEPLOY_TOKEN }}
         run: |
           # 1. Clone the main repo
           git clone --depth 1 --branch pages https://pj_bin:${{ env.MAIN_SITE_TOKEN }}@codeberg.org/pj_bin/vector_foundry.git main_site_temp
@@ -58,5 +59,5 @@ jobs:
           # This tells git: "Only track changes inside the demos folder"
           git add demos/vector-pathfinder/
           
-          git commit -m "Update vector-pathfinder demo"
-          git push origin pages
+          git commit -m "Update vector-pathfinder demo" 
+          git push https://pj_bin:${{ env.MAIN_SITE_TOKEN }}@codeberg.org/pj_bin/vector_foundry.git pages
