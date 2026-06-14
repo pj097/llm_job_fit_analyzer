@@ -1,4 +1,5 @@
 import ast
+import base64
 import json
 from pathlib import Path
 
@@ -228,7 +229,13 @@ else:
     _demo_query = _demo_location = _demo_prompt = None
 
 if LOGO_PATH.exists():
-    st.sidebar.image(str(LOGO_PATH), width=100)
+    _logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
+    st.sidebar.markdown(
+        f'<a href="https://vectorfoundry.co.uk" target="_blank">'
+        f'<img src="data:image/svg+xml;base64,{_logo_b64}" width="100"/>'
+        f'</a>',
+        unsafe_allow_html=True,
+    )
 
 st.markdown(f"# [ {grad('Vector_Pathfinder')} ]", unsafe_allow_html=True)
 if settings.demo_mode:
