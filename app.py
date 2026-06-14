@@ -232,7 +232,8 @@ if LOGO_PATH.exists():
     _logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
     st.sidebar.markdown(
         f'<a href="https://vectorfoundry.co.uk" target="_blank">'
-        f'<img src="data:image/svg+xml;base64,{_logo_b64}" width="100"/>'
+        f'<img src="data:image/svg+xml;base64,{_logo_b64}" width="100"'
+        f' style="transform: scaleX(-1);"/>'
         f'</a>',
         unsafe_allow_html=True,
     )
