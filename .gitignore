@@ -1,10 +1,15 @@
 search_results/
 data/
-mock_build/index.html
+demo/
+deploy/
+
 .prompt.txt
 .env
 .venv/
+.coverage
+.pytest_cache/
 **/.ipynb_checkpoints
 **/__pycache__
 **/*egg-info*
-uv.lock
+
+.claude

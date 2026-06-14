@@ -1,150 +1,220 @@
 import json
-import time
-import pandas as pd
 import re
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Optional
 
-from llm.ollama import OllamaProvider
-from llm.gemini import GeminiProvider
+import pandas as pd
+
 from config.settings import settings
+from services import recorder
+from services.scraping import normalize_url
+
+# Appended to the (user-editable) prompt in code so the instructions the user
+# sees stay free of machinery and there's no placeholder for them to delete.
+JOB_ADVERT_BLOCK = "\n\n### Input Data\n<job_advert>\n{advert}\n</job_advert>"
+
+
+def derive_job_url(job: dict) -> str:
+    """Derives the normalized URL used as the cache key, or '' if none exists.
+
+    Google Jobs results carry source_link (employer/job board) and
+    share_link (Google, always present); prefer the most direct link.
+    """
+    apply_link = (job.get("apply_options") or [{}])[0].get("link")
+    url = job.get("job_url") or apply_link or job.get("source_link") or job.get("share_link")
+    return normalize_url(url)
+
 
 class JobScorer:
     def __init__(
-        self, 
-        provider: str = None, 
-        model: str = None, 
-        temperature: float = None, 
-        api_key: str = None,
-        use_cache: bool = True
+        self,
+        provider: str | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
+        api_key: str | None = None,
+        prompt: str | None = None,
+        query: str | None = None,
+        location: str | None = None,
     ):
+        self.demo_mode = settings.demo_mode
+
+        if self.demo_mode:
+            # Replay recorded scores only: no LLM provider, no prompt,
+            # no live cache file
+            self.llm = None
+            raw = recorder.load_fixture("scored_jobs")
+            if "_meta" in raw:
+                self.fixture_meta = raw["_meta"]
+                self.scored_data = raw.get("jobs", {})
+            else:
+                self.fixture_meta = {}
+                self.scored_data = raw
+            return
+
         self.provider_name = provider or settings.default_provider
         self.model_name = model or settings.default_model
-        self.temp = temperature or settings.default_temperature
-        self.api_key = api_key or settings.gemini_api_key
-        
+        self.temp = temperature if temperature is not None else settings.default_temperature
+        self.api_key = api_key or (
+            settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None
+        )
+
         # 1. Initialize LLM Provider
+        # Imported lazily so the unused provider's dependencies never load.
         if self.provider_name == "ollama":
+            from llm.ollama import OllamaProvider
+
             self.llm = OllamaProvider(model=self.model_name, temperature=self.temp)
         elif self.provider_name == "gemini":
-            self.llm = GeminiProvider(model=self.model_name, api_key=self.api_key, temperature=self.temp)
+            from llm.gemini import GeminiProvider
+
+            self.llm = GeminiProvider(
+                model=self.model_name, api_key=self.api_key, temperature=self.temp
+            )
         else:
             raise ValueError(f"Unknown provider: {self.provider_name}")
 
         # 2. Local Result Caching (Save Money)
-        clean_model_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', self.model_name)
+        clean_model_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", self.model_name)
         cache_filename = f"scored_cache_{self.provider_name}_{clean_model_name}.json"
-        
-        # 2. SET THE PATH
+
         self.local_db_path = Path("data") / cache_filename
         self.local_db_path.parent.mkdir(parents=True, exist_ok=True)
         self.scored_data = self._load_local_db()
 
-        # 3. Server-side Context Caching (Speed & Token Discount)
-        self.prompt_template = Path(settings.prompt_file).read_text()
-        self.server_cache_name = None
-        
-        if use_cache and isinstance(self.llm, GeminiProvider):
-            # Split template to get only instructions/profile (before the job variable)
-            static_context = self.prompt_template.split("{{INSERT_JOB_ADVERT_HERE}}")[0]
-    
-            # Technical Note: Gemini's minimum for caching is 32,768 tokens 
-            # for it to be active for billing, but you can create them smaller for testing.
-            # len() is characters, so 2000 chars is roughly 500-700 tokens.
-            if len(static_context) > 2000: 
-                cache = genai.caching.CachedContent.create(
-                    model='models/gemini-1.5-flash-001', # Use your specific model
-                    display_name='job_evaluation_context',
-                    contents=[static_context],
-                    ttl=timedelta(minutes=60), # Cache expires after 1 hour
-                )
-                self.server_cache_name = cache.name
+        # UI-supplied prompt wins; fall back to the file default when absent
+        # (e.g. headless runs).
+        self.prompt_template = prompt or Path(settings.prompt_file).read_text()
+
+        # The search line/location the user actually ran with. Recorded into the
+        # cache _meta so the demo recorder can replay them as fixed inputs
+        # instead of re-reading stale config.
+        self.query = query
+        self.location = location
 
     def _load_local_db(self) -> dict:
         if self.local_db_path.exists():
             try:
-                return json.loads(self.local_db_path.read_text())
-            except:
+                raw = json.loads(self.local_db_path.read_text())
+                if "_meta" in raw and "jobs" in raw:
+                    return raw["jobs"]
+                return raw
+            except json.JSONDecodeError, OSError:
                 return {}
         return {}
 
     def _save_to_local_db(self):
         """Writes the entire current scored_data state to disk."""
-        tmp_path = self.local_db_path.with_suffix('.tmp')
+        tmp_path = self.local_db_path.with_suffix(".tmp")
         try:
-            with open(tmp_path, 'w', encoding='utf-8') as f:
-                # We save the full internal dictionary, not a passed argument
-                json.dump(self.scored_data, f, indent=4)
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "_meta": {
+                            "provider": self.provider_name,
+                            "model": self.model_name,
+                            "prompt": self.prompt_template,
+                            "query": self.query,
+                            "location": self.location,
+                        },
+                        "jobs": self.scored_data,
+                    },
+                    f,
+                    indent=4,
+                )
             tmp_path.replace(self.local_db_path)
         except Exception as e:
             print(f"Warning: Failed to save cache: {e}")
 
-    def score(self, scraping: dict, use_batch: bool = False, progress_cb: Optional[Callable] = None) -> pd.DataFrame:
+    def score(
+        self,
+        scraping: dict,
+        progress_cb: Callable | None = None,
+        result_cb: Callable | None = None,
+        exclude_keywords: list[str] | None = None,
+    ) -> pd.DataFrame:
         final_results = []
         jobs_to_process = []
-        gen_args = {"cache_name": self.server_cache_name} if self.server_cache_name else {}
+
+        # Case-insensitive title exclusions; drop jobs before they reach the
+        # cache or the LLM so excluded titles never cost tokens.
+        exclude = [k.lower() for k in (exclude_keywords or []) if k.strip()]
 
         # Step 1: Filter using LOCAL CACHE
         for platform, scrape in scraping.items():
             for job in scrape.get("results", []):
-                # Ensure we have a unique URL or ID
-                url = job.get("job_url") or job.get("apply_options", [{}])[0].get("link")
-                
+                title = job.get("title") or job.get("job_title") or ""
+                if exclude and any(k in title.lower() for k in exclude):
+                    print(f"Excluding job by title filter: {title}")
+                    continue
+
+                url = derive_job_url(job)
+
+                if not url:
+                    # No stable key to cache or link this job under
+                    print(f"Skipping job without a URL: {job.get('title') or job.get('job_title')}")
+                    continue
+
                 if url in self.scored_data:
                     cached_item = self.scored_data[url]
                     # FIX: Inject title from source if missing in old cache
                     if "job_title" not in cached_item:
                         cached_item["job_title"] = job.get("title") or job.get("job_title")
+                    cached_item.setdefault("job_url", url)
                     final_results.append(cached_item)
+                    if result_cb:
+                        result_cb(cached_item)
+                elif self.demo_mode:
+                    # Only recorded jobs can be shown in demo mode
+                    print(f"Demo mode: no recorded score for {url}; dropping job")
                 else:
                     jobs_to_process.append({"job": job, "platform": platform, "url": url})
 
-        if not jobs_to_process:
-            return pd.DataFrame(final_results)
-
         # Step 2: Handle NEW jobs
-        prompts = [self.prompt_template.replace("{{INSERT_JOB_ADVERT_HERE}}", json.dumps(item["job"])) 
-                   for item in jobs_to_process]
+        if jobs_to_process:
+            if not self.llm:
+                raise RuntimeError("LLM provider is not initialized, cannot score new jobs.")
 
-        # (Batch logic remains here...)
+            prompts = [
+                self.prompt_template + JOB_ADVERT_BLOCK.format(advert=json.dumps(item["job"]))
+                for item in jobs_to_process
+            ]
 
-        # WORKFLOW B: REAL-TIME (Synchronous)
-        for i, prompt in enumerate(prompts):
-            try:
-                raw_json = self.llm.generate(prompt, **gen_args)
-                parsed = json.loads(raw_json)
-                
-                # --- THE FIX: MANUAL METADATA INJECTION ---
-                original_job = jobs_to_process[i]["job"]
-                
-                # Pull the title directly from the SCRAPED data, not the LLM
-                parsed["job_title"] = original_job.get("title") or original_job.get("job_title")
-                parsed["company"] = original_job.get("company") or parsed.get("company")
-                parsed["job_url"] = jobs_to_process[i]["url"]
-                parsed["where"] = jobs_to_process[i]["platform"]
-                
-                # Update cache and results
-                self.scored_data[parsed["job_url"]] = parsed
-                self._save_to_local_db() 
-                
-                final_results.append(parsed)
-                
-            except Exception as e:
-                print(f"Error scoring {jobs_to_process[i]['url']}: {e}")
+            for i, prompt in enumerate(prompts):
+                try:
+                    raw_json = self.llm.generate(prompt)
+                    parsed = json.loads(raw_json)
 
-            if progress_cb:
-                progress_cb((i + 1) / len(prompts))
+                    # --- THE FIX: MANUAL METADATA INJECTION ---
+                    original_job = jobs_to_process[i]["job"]
 
-        return pd.DataFrame(final_results)
+                    # Pull the title directly from the SCRAPED data, not the LLM
+                    parsed["job_title"] = original_job.get("title") or original_job.get("job_title")
+                    parsed["company"] = original_job.get("company") or parsed.get("company")
+                    parsed["job_url"] = jobs_to_process[i]["url"]
+                    parsed["where"] = jobs_to_process[i]["platform"]
 
-    def check_batch_results(self, batch_id: str):
-        """Polls Gemini to see if the batch is done and saves to local cache."""
-        if not isinstance(self.llm, GeminiProvider):
-            return None
-            
-        job = self.llm.client.batches.get(name=batch_id)
-        if job.state.name == "JOB_STATE_SUCCEEDED":
-            # Implementation for downloading and parsing results would go here
-            # For now, we return the status
-            return "SUCCEEDED"
-        return job.state.name
+                    # Update cache and results
+                    self.scored_data[parsed["job_url"]] = parsed
+                    self._save_to_local_db()
+
+                    final_results.append(parsed)
+                    if result_cb:
+                        result_cb(parsed)
+
+                except Exception as e:
+                    print(f"Error scoring {jobs_to_process[i]['url']}: {e}")
+
+                if progress_cb:
+                    progress_cb((i + 1) / len(prompts))
+
+        valid_results = []
+        for item in final_results:
+            if item.get("overall_fit") is None:
+                print(
+                    f"Dropping job with missing overall_fit: "
+                    f"{item.get('job_title') or item.get('job_url')}"
+                )
+            else:
+                valid_results.append(item)
+
+        return pd.DataFrame(valid_results)

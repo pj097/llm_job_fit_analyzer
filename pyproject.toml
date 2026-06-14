@@ -3,7 +3,7 @@ name = "llm-job-fit-analyzer"
 version = "0.1.0"
 description = "Streamlit app for scraping job adverts and scoring them against career preferences using local LLMs."
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 license = { text = "AGPL-3.0-or-later" }
 
 authors = [
@@ -22,13 +22,16 @@ keywords = [
 dependencies = [
   "streamlit",
   "pandas",
-  "numpy",
-  "tqdm",
-  "langchain-ollama",
-  "google.genai",
   "pydantic-settings",
-  "serpapi",
-  "beautifulsoup4",
+  "requests",
+]
+
+[project.optional-dependencies]
+ollama = ["langchain-ollama"]
+gemini = ["google-genai"]
+scraping = ["serpapi", "beautifulsoup4"]
+full = [
+  "llm-job-fit-analyzer[ollama,gemini,scraping]",
 ]
 
 [build-system]
@@ -38,19 +41,36 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
   "ruff",
-  "black",
   "mypy",
   "ipykernel",
+  "pytest>=9.0.3",
+  "pytest-mock>=3.15.1",
+  "pytest-cov>=7.1.0",
+  "pyright",
 ]
+# Browser automation for scripts/capture_demo.py (full-page demo screenshot).
+# Kept out of `dev` so routine lint/test installs stay lean. After syncing,
+# fetch the browser binary: `uv run playwright install chromium`.
+screenshot = ["playwright"]
 
 ## Tooling configuration
+
+[tool.uv]
+exclude-newer = "10 days" 
 
 ### Ruff (linting)
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+# Matches requires-python (>=3.14); CI and the container both run 3.14.
+target-version = "py314"
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]
 
-[tool.ruff.isort]
-known-first-party = ["scrapers", "llama_prompt"]
+[tool.pytest.ini_options]
+pythonpath = [".", "src"]
+addopts = "--cov=src --cov=app --cov-report=term-missing"
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "services", "scrapers", "llm"]

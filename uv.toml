@@ -1,0 +1,4 @@
+# Exclude packages released in the last 2 weeks. This avoids picking up
+# freshly published releases that haven't had time to be vetted.
+# Update this date when intentionally pulling newer packages.
+exclude-newer = "2026-05-30T00:00:00Z"

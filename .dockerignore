@@ -1,0 +1,26 @@
+# Never bake secrets or personal data into an image (the demo image is
+# deployed publicly). .prompt.txt stays in: the live container reads it at
+# runtime; CI demo builds never see it (gitignored) and demo mode never
+# reads it.
+.env
+data/
+search_results/
+
+# Build/dev cruft
+.git/
+.venv/
+.coverage
+.pytest_cache/
+.ruff_cache/
+**/__pycache__
+**/.ipynb_checkpoints
+**/*egg-info*
+
+# Not needed at runtime
+tests/
+docs/
+scripts/
+deploy/
+.forgejo/
+.streamlit/
+uv.toml

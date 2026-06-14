@@ -1,63 +1,39 @@
 name: Deploy Job Search Demo
 on: [push, pull_request]
 
+# Required instance configuration before this can deploy:
+#   Variables: REGISTRY (e.g. codeberg.org), REGISTRY_USER, IMAGE (e.g. owner/llm-job-fit-demo)
+#   Secrets:   REGISTRY_TOKEN, DEPLOY_WEBHOOK_URL, DEPLOY_WEBHOOK_TOKEN
+# The runner labelled `docker` must expose a Docker daemon (socket mount or
+# DinD) for the build/push steps to work.
+
 jobs:
   build-and-deploy:
     runs-on: docker
-    container:
-      image: node:20-bookworm
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          clean: true  
+          clean: true
           persist-credentials: false
-          fetch-depth: 0
 
-      - name: Prepare Static Site
+      - name: Build Demo Container
+        run: docker build -f Containerfile.demo -t "${{ vars.REGISTRY }}/${{ vars.IMAGE }}:latest" .
+
+      - name: Push to Registry
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          cd mock_build
-          python3 build_html.py
-          cd ..
-          mkdir -p deploy
-          mv mock_build/index.html deploy/
-
-      - name: Push to Pages Branch
+          printenv REGISTRY_TOKEN | docker login -u "${{ vars.REGISTRY_USER }}" --password-stdin "${{ vars.REGISTRY }}"
+          docker push "${{ vars.REGISTRY }}/${{ vars.IMAGE }}:latest"
         env:
-          GITHUB_TOKEN: ${{ secrets.PAGES_TOKEN }}
-        run: |
-          cd deploy/
-          git init --initial-branch=main
-          git config user.name "Forgejo Action"
-          git config user.email "actions@vectorfoundry.co.uk"
-          git add .
-          git commit -m "Deploy demo"
-          # Securely push using the secret token in Codeberg
-          git push --force https://${{ github.actor }}:${{ secrets.PAGES_TOKEN }}@codeberg.org/${{ github.repository }}.git main:pages
+          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
 
-      - name: Sync Demo to Main Website Subfolder
-        # if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        env:
-          MAIN_SITE_TOKEN: ${{ secrets.JOB_DEPLOY_TOKEN }}
+      - name: Trigger VPS Redeploy
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          # 1. Clone the main repo
-          git clone --depth 1 --branch pages https://pj_bin:${{ env.MAIN_SITE_TOKEN }}@codeberg.org/pj_bin/vector_foundry.git main_site_temp
-          
-          # 2. Setup the path
-          DEST_DIR="main_site_temp/demos/vector-pathfinder"
-          mkdir -p "$DEST_DIR"
-          
-          # 3. Copy ONLY the specific file
-          cp deploy/index.html "$DEST_DIR/"
-          
-          # 4. Commit ONLY that specific directory
-          cd main_site_temp
-          git config user.name "Vector Foundry Action"
-          git config user.email "actions@vectorfoundry.co.uk"
-          
-          # This tells git: "Only track changes inside the demos folder"
-          git add demos/vector-pathfinder/
-          
-          git commit -m "Update vector-pathfinder demo" 
-          git push https://pj_bin:${{ env.MAIN_SITE_TOKEN }}@codeberg.org/pj_bin/vector_foundry.git pages
+          curl --fail-with-body -sS -X POST \
+            -H "Authorization: Bearer $DEPLOY_WEBHOOK_TOKEN" \
+            "$DEPLOY_WEBHOOK_URL"
+        env:
+          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}

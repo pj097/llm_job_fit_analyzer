@@ -1,0 +1,51 @@
+# ── Stage 1: build the venv ───────────────────────────────────────────────────
+# uv is only needed here; it never lands in the final image.
+FROM python:3.14-slim-bookworm AS builder
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/
+
+ENV UV_PROJECT_ENVIRONMENT="/home/.venv"
+
+WORKDIR /app
+
+# Install dependencies first (better layer caching — this layer only
+# rebuilds when pyproject.toml or uv.lock change).
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-install-project --no-dev
+
+# Install the project itself as a non-editable wheel so the built venv is
+# fully self-contained and src/ is not required at runtime.
+COPY src/ ./src/
+RUN uv sync --no-dev --no-editable
+
+
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+# Clean image: no uv, no src/, no build tools, no dev/test files.
+FROM python:3.14-slim-bookworm
+
+ENV PATH="/home/.venv/bin:$PATH"
+ENV DEMO_MODE="true"
+
+WORKDIR /app
+
+COPY --from=builder /home/.venv /home/.venv
+
+# Copy only what the demo needs at runtime.
+COPY app.py ./
+COPY demo/fixtures/ ./demo/fixtures/
+COPY static/ ./static/
+
+# Run as an unprivileged user: this image is deployed publicly and serves
+# only static fixtures, so it never needs root.
+RUN useradd --create-home --uid 10001 appuser
+ENV HOME=/home/appuser
+USER appuser
+
+EXPOSE 8501
+
+# headless + gatherUsageStats=false keep the public container quiet: no email
+# prompt on first run, no telemetry.
+ENTRYPOINT ["streamlit", "run", "app.py", \
+    "--server.port=8501", \
+    "--server.address=0.0.0.0", \
+    "--server.headless=true", \
+    "--browser.gatherUsageStats=false"]

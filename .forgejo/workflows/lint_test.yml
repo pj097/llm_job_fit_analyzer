@@ -1,0 +1,39 @@
+name: Lint and Test
+on: [push, pull_request]
+
+jobs:
+  test:
+    # Same runner/container combo as the previously working deploy workflow
+    # on this Forgejo instance.
+    runs-on: docker
+    container:
+      image: node:20-bookworm
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run Ruff Linting
+        run: uv run ruff check .
+
+      - name: Run Ruff Formatting Check
+        run: uv run ruff format --check .
+
+      - name: Run Pyright Type Checking
+        run: uv run pyright src/ app.py
+
+      - name: Run Tests with Coverage
+        run: uv run pytest tests/

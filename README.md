@@ -2,57 +2,90 @@
 
 An intelligent job search assistant that scrapes job advertisements and uses **LLMs (Gemini & Ollama)** to score them against your unique career profile. It features local caching to save costs and an incremental-save mechanism to prevent data loss.
 
-Why I have created this tool:
+Why I built this:
 
-Tired of reading job descriptions that feel like a recipe blog post. We’ve all seen them: the job ads that spend ten paragraphs detailing the company’s "inspirational founding story" and the CEO's self-discovery trip to Peru before finally mentioning they need a Java dev. If you’re tired of hunting for actual technical requirements through a forest of corporate buzzwords, or companies that can't even describe what they need, this tool might be for you.
+Tired of reading job descriptions that feel like a recipe blog post. We've all seen them: the job ads that spend ten paragraphs detailing the company's "inspirational founding story" and the CEO's self-discovery trip to Peru before finally mentioning they need a Java dev. If you're tired of hunting for actual technical requirements through a forest of corporate buzzwords, or companies that can't even describe what they need, this tool might be for you.
 
 What this isn't intended for:
 
 To entirely automate the job search process. This tool is intended to shortlist job listings, with the user making the final selection and applying for the job themselves.
 
 ## Features
-- **Hybrid LLM Support:** Switch between local models (Ollama) and high-performance cloud models (Gemini 3).
+
+- **Hybrid LLM Support:** Switch between local models (Ollama) and cloud models (Gemini).
 - **Smart Caching:** Local JSON caching avoids re-scoring jobs you've already analyzed (0ms latency for known jobs).
-- **URL Normalization:** Automatically strips tracking junk (UTM tags, trk IDs) to ensure stable cache hits.
-- **Incremental Saving:** Updates your local database after *every* successful score to protect against crashes.
-- **Batch Processing:** Support for Gemini API Batch mode to process large volumes at 50% cost.
+- **URL Normalization:** Automatically strips tracking parameters (UTM tags, trk IDs) to ensure stable cache hits.
+- **Incremental Saving:** Updates your local database after every successful score to protect against crashes.
+- **Demo Mode:** Fully self-contained record/replay — no API keys or network required.
+
+---
+
+## How it works
+
+**Vector_Pathfinder** turns a wall of job adverts into a ranked shortlist. It fetches listings for your search, scores each one against a profile/prompt you control using a local or cloud LLM, and surfaces the best matches with a short technical analysis per role. Scores are cached locally so re-runs are instant, and a self-contained demo mode replays recorded data — no API keys or network required.
+
+<!-- FLOW_DIAGRAM:START — generated from static/flow.mmd by scripts/sync_flow_diagram.py; do not edit this block by hand -->
+```mermaid
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"transparent","secondaryColor":"transparent","tertiaryColor":"transparent","lineColor":"#0284c7","primaryBorderColor":"#0284c7","primaryTextColor":"#7dd3fc","textColor":"#38bdf8","tertiaryTextColor":"#38bdf8","edgeLabelBackground":"rgba(14,165,233,0.01)"}}}%%
+flowchart TD
+    U["Sidebar inputs:<br/>query, location, prompt"] --> AGG["FETCH listings"]
+    AGG --> Q{"Reuse last<br/>results?"}
+    Q -- yes --> LAST["Load cached listings"]
+    Q -- no --> LIVE["Retrieve fresh listings"]
+    LIVE --> NORM["Clean &amp; de-duplicate URLs"]
+    LAST --> NORM
+    NORM --> FILTER["Drop excluded<br/>title keywords"]
+    FILTER --> C{"Already<br/>scored?"}
+    C -- yes --> OUT["Shortlist table +<br/>analysis log"]
+    C -- no --> LLM["Score against your prompt<br/>(local or cloud LLM)"]
+    LLM --> SAVE["Cache score<br/>incrementally"] --> OUT
+    DEMO["DEMO MODE:<br/>replay recorded fixtures"] -. "replaces fetch<br/>+ scoring" .-> NORM
+    DEMO -. "recorded<br/>scores" .-> OUT
+```
+<!-- FLOW_DIAGRAM:END -->
+
+> **`static/flow.mmd` is the single source of truth** for this diagram — the app renders it live in the **HOW_IT_WORKS** panel (with an **Expand** button for a full-size view). The block above is generated from it; after editing `flow.mmd`, run `uv run python scripts/sync_flow_diagram.py` to refresh it (a test fails if they drift).
 
 ---
 
 ## Installation & Setup
 
-This project uses [uv](https://docs.astral.sh/uv/)
+This project uses [uv](https://docs.astral.sh/uv/).
 
-### 1. Prerequisites
-- **Python 3.12+**
+### Prerequisites
+
+- **Python 3.14+**
 - **Ollama** (if running models locally)
-- **SerpApi Key** (for Google Jobs scraping)
-- **Gemini API key** (for Gemini 3.0+)
+- **SerpApi Key** (for Google Jobs scraping — only needed for live scrapes)
+- **Gemini API Key** (if using Gemini instead of Ollama)
 
+### Install & run
+
+```bash
 # Install dependencies and create virtual environment automatically
 uv sync
 
-# Use 'uv run' to execute the app locally within the managed environment
-uv run streamlit run app.py --server.headless true --server.address=127.0.0.6
+# Run the app locally
+uv run streamlit run app.py --server.headless true --server.address=127.0.0.1
+```
 
-### `.env` Template
+### `.env` template
 
 ```bash
 # --- General Settings ---
 DEBUG=false
-# Path to your prompt
 PROMPT_FILE=.prompt.txt
 
 # --- LLM Provider Configuration ---
 DEFAULT_PROVIDER=ollama
-DEFAULT_MODEL=llama3.1:8b
+DEFAULT_MODEL=gemma4:12b
 DEFAULT_TEMPERATURE=1.0
 MAX_ATTEMPTS=5
 
-# Gemini Settings (Cloud)
+# Gemini Settings (cloud)
 # Get your key at: https://aistudio.google.com/
 GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
-GEMINI_DEFAULT_MODEL=gemini-3-flash-preview
+GEMINI_DEFAULT_MODEL=gemini-3.5-flash
 
 # --- Scraping Configuration ---
 # Get your key at: https://serpapi.com/
@@ -60,29 +93,41 @@ SERPAPI_KEY=YOUR_SERP_API_KEY_HERE
 DEFAULT_SEARCH_PAGES=8
 USE_LAST_SCRAPE=true
 
-# Search Query Configuration (JSON format)
-# Example: GOOGLE_SEARCH_PARAMS='{"engine": "google_jobs", "location": "London,England,United Kingdom", "hl": "en", "gl": "uk", "q": "Electrical Engineer"}'
-GOOGLE_SEARCH_PARAMS='{"engine": "google_jobs", "location": "YOUR LOCATION HERE", "hl": "en", "gl": "YOUR DOMAIN HERE", "q": "YOUR JOB QUERY HERE"}'
-
-# --- Filtering ---
-EXCLUDE_TITLE_KEYWORDS=["french maid", "soulless executive"]
+# Search engine config (JSON format). The search query and location are set
+# in the app UI; only the engine/language/country defaults live here.
+GOOGLE_SEARCH_PARAMS='{"engine": "google_jobs", "hl": "en", "gl": "YOUR DOMAIN HERE"}'
 ```
+
+The search query, location (typeahead against SerpApi's Locations API), title
+keyword exclusions, and the scoring prompt are all set in the app's sidebar — no
+config needed.
+
+---
 
 ## Scoring Logic (Example Prompt)
 
-The system uses a highly structured prompt located in `.prompt.txt`. This file defines your "Digital Recruiter" persona and your technical requirements. Below is the standard template used for evaluating the roles (JSON Schema keys are required unless app.py is updated):
+The scoring prompt is editable in the app sidebar, pre-filled from `.prompt.txt`. This file defines your "Digital Recruiter" persona and technical requirements. The job advert is appended automatically during the scoring loop, so the prompt only needs to contain your instructions.
 
-### Example `.prompt.txt` (replace [PLACEHOLDER] brackets with your preferences)
-> **Note:** The `{{INSERT_JOB_ADVERT_HERE}}` placeholder is automatically populated by the app during the scoring loop.
+A ready-to-run, generic version ships as [`prompt.example.txt`](prompt.example.txt). Copy it and tailor it to your background:
 
-```markdown
+```bash
+cp prompt.example.txt .prompt.txt
+```
+
+`.prompt.txt` is gitignored, so your personalised copy stays private. You can also load any `.txt` straight into the prompt box from the sidebar's upload control.
+
+### Prompt structure
+
+The template below shows the expected sections. Replace all `[PLACEHOLDER]` brackets with your own preferences — or start from `prompt.example.txt` and edit in place.
+
+```
 ### System Role
 You are a Lead Technical Headhunter specializing in [YOUR_FIELDS_OF_CHOICE_HERE]. Evaluate the job advert strictly against the provided profile.
 
 ### Candidate Profile
 - Core: [YOUR_CORE].
-- Expertise: [YOUR_EXPERTIZE].
-- Philosophy: [YOUR_PHILOSOPHY]. 
+- Expertise: [YOUR_EXPERTISE].
+- Philosophy: [YOUR_PHILOSOPHY].
 - Domain: [YOUR_DOMAINS].
 - Preferable: [YOUR_PREFERENCES].
 
@@ -106,15 +151,138 @@ You are a Lead Technical Headhunter specializing in [YOUR_FIELDS_OF_CHOICE_HERE]
 }
 
 ### Constraints
-- "triage_summary" must be exactly 2 sentences: 1) The technical "core" of the job. 2) Why it specifically fits/misses your niche.
+- "triage_summary" must be exactly 2 sentences: 1) The technical core of the job. 2) Why it specifically fits/misses your niche.
 - OUTPUT ONLY COMPACT JSON. NO MARKDOWN. NO PREAMBLE.
-
-### Input Data
-<job_advert>
-{{INSERT_JOB_ADVERT_HERE}}
-</job_advert>
 ```
 
-### Further Work
+> The job advert is appended automatically after your instructions, so the prompt does not need an input/`{{INSERT_JOB_ADVERT_HERE}}` section.
 
-Possibly more scrapers, though unlikely as Google does a decent job and scraping generally takes too much time and effort to maintain. 
+---
+
+## Demo Mode (record & replay)
+
+The app can run as a fully self-contained demo — no API keys, no Ollama, no network.
+All external interactions are replayed from recorded fixtures in `demo/fixtures/`.
+
+| Setting | Effect |
+|---|---|
+| `DEMO_MODE=true` | Replay fixtures instead of scraping/scoring; live UI controls are locked |
+| `FIXTURES_DIR` | Fixture location (default: `demo/fixtures`) |
+
+The fixtures committed in this repo contain a real recorded scrape with curated sample scores.
+Re-run `scripts/record_demo.py` against a live LLM to record genuine scores.
+
+### Refreshing the demo fixtures
+
+**On the host:**
+
+```bash
+# Reads the scored cache + last scrape and writes demo/fixtures/:
+uv run python scripts/record_demo.py
+
+# Then review and commit demo/fixtures/
+```
+
+The script is a pure cache copier — it needs no LLM, no network, and no API
+keys. Run the app and score some jobs first so the cache exists.
+
+**Inside the app container:**
+
+The full `Containerfile` uses `ENTRYPOINT` to always launch Streamlit. Pass
+`--entrypoint python` to override it and run the record script instead. The
+script needs no LLM or network — it only reads the scored cache and last scrape
+and writes the fixtures back to the host:
+
+```bash
+podman run --rm -it \
+    --entrypoint python \
+    -v ./demo:/app/demo:Z \
+    -v ./data:/app/data:ro,Z \
+    -v ./search_results:/app/search_results:ro,Z \
+    job-analyzer:latest \
+    scripts/record_demo.py
+```
+
+Or use the wrapper script, which builds the image if needed and mounts the right directories:
+
+```bash
+scripts/record_demo_container.sh
+```
+
+### Running the demo locally
+
+```bash
+DEMO_MODE=true uv run streamlit run app.py
+```
+
+### Capturing a demo screenshot
+
+`scripts/capture_demo.py` drives the demo through its replayed scrape + score
+flow with Playwright and saves a full-page WebP (default `static/demo.webp`):
+
+```bash
+uv sync --group screenshot
+uv run playwright install chromium      # one-time browser download
+
+# Launch a throwaway demo server, capture, tear it down:
+uv run python scripts/capture_demo.py --launch
+
+# Or capture an already-running demo (e.g. the container on :8501):
+uv run python scripts/capture_demo.py --url http://localhost:8501
+```
+
+Use `--no-score` for just the landing view, or `--out path.webp` to change the
+target. No LLM, scraping, or API keys are involved — it only exercises demo mode.
+
+To capture just the results block (metrics, matches table, and analysis log with
+the top entry expanded) rather than the whole page, use `--region results`. The
+results block is wrapped in `app.py` by `st.container(key="results")` (class
+`.st-key-results`):
+
+```bash
+uv run python scripts/capture_demo.py --launch --region results
+```
+
+To capture inside the app container instead (Debian-based, so Chromium's system
+libs are available — handy when your host can't run a browser), use the wrapper.
+Playwright + Chromium are baked into the main image (`Containerfile`), so it just
+launches a headless demo there and writes `static/demo.webp` back to the repo:
+
+```bash
+scripts/capture_demo_container.sh
+scripts/capture_demo_container.sh --no-score --out static/social-card.webp
+```
+
+After changing `app.py` or the capture script, rebuild so the change is picked up
+(`podman build -t job-analyzer:latest -f Containerfile .`); the Chromium layer is
+cached, so the rebuild is fast.
+
+---
+
+## Deployment (VPS / Demo Container)
+
+Demo mode can be packaged into a lightweight, standalone container (`Containerfile.demo`)
+that requires zero API keys and minimal resources, making it ideal for public VPS deployment.
+
+Build and run:
+
+```bash
+podman build -t job-analyzer-demo:latest -f Containerfile.demo .
+podman run --rm -p 8501:8501 job-analyzer-demo:latest
+```
+
+A systemd quadlet for unattended deployment is provided in `deploy/job-analyzer.container`.
+
+**Reverse proxy subpath:** when serving behind a proxy under a subpath (e.g.
+`your-site.com/demos/vector-pathfinder`), add `--server.baseUrlPath=/demos/vector-pathfinder`
+to the `ENTRYPOINT` in `Containerfile.demo` or pass it via the quadlet's `Exec` line.
+
+Since the demo serves entirely from static fixtures, container memory and CPU
+resources can be capped aggressively.
+
+---
+
+## Further Work
+
+Possibly more scrapers, though unlikely — Google does a decent job and scraping
+generally takes too much time and effort to maintain.
