@@ -1,39 +1,18 @@
-name: Deploy Job Search Demo
-on: [push, pull_request]
+name: Deploy to VPS
 
-# Required instance configuration before this can deploy:
-#   Variables: REGISTRY (e.g. codeberg.org), REGISTRY_USER, IMAGE (e.g. owner/llm-job-fit-demo)
-#   Secrets:   REGISTRY_TOKEN, DEPLOY_WEBHOOK_URL, DEPLOY_WEBHOOK_TOKEN
-# The runner labelled `docker` must expose a Docker daemon (socket mount or
-# DinD) for the build/push steps to work.
+on:
+  push:
+    branches:
+      - main
 
 jobs:
-  build-and-deploy:
-    runs-on: docker
+  deploy:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.0.3
         with:
-          clean: true
-          persist-credentials: false
-
-      - name: Build Demo Container
-        run: docker build -f Containerfile.demo -t "${{ vars.REGISTRY }}/${{ vars.IMAGE }}:latest" .
-
-      - name: Push to Registry
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          printenv REGISTRY_TOKEN | docker login -u "${{ vars.REGISTRY_USER }}" --password-stdin "${{ vars.REGISTRY }}"
-          docker push "${{ vars.REGISTRY }}/${{ vars.IMAGE }}:latest"
-        env:
-          REGISTRY_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
-
-      - name: Trigger VPS Redeploy
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          curl --fail-with-body -sS -X POST \
-            -H "Authorization: Bearer $DEPLOY_WEBHOOK_TOKEN" \
-            "$DEPLOY_WEBHOOK_URL"
-        env:
-          DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
-          DEPLOY_WEBHOOK_TOKEN: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}
+          host: 51.195.203.4
+          username: ubuntu
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: /opt/vectorfoundry/scripts/deploy-pathfinder.sh
