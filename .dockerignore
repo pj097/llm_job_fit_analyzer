@@ -22,5 +22,5 @@ docs/
 scripts/
 deploy/
 .forgejo/
-.streamlit/
+.streamlit/secrets.toml
 uv.toml
