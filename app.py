@@ -15,6 +15,13 @@ from services.scraping import JobScraper
 LOGO_PATH = Path(__file__).parent / "static" / "logo.svg"
 FLOW_MMD = Path(__file__).parent / "static" / "flow.mmd"
 
+st.set_page_config(
+    page_title="Vector Foundry | Analyzer",
+    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else None,
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 # One-paragraph plain-English summary, reused in the README. Deliberately
 # generic (no provider names) so it stays accurate as scrapers/models change.
 HOW_IT_WORKS = (
@@ -155,13 +162,6 @@ def fetch_locations(term: str, limit: int = 15) -> list[str]:
     except requests.RequestException, ValueError, KeyError:
         return []
 
-
-st.set_page_config(
-    page_title="Vector Foundry | Analyzer",
-    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else None,
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
 
 # Global CSS: apply the sky-blue gradient to expander headers and button labels.
 # These components don't accept unsafe_allow_html in their label args, so we
