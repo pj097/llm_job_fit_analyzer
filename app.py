@@ -119,14 +119,14 @@ def order_table_columns(available) -> list[str]:
 
 
 def grad(text: str) -> str:
-    """Wrap *text* in a sky-blue gradient span (left: sky-300 → right: sky-700).
+    """Wrap *text* in a sky-blue gradient span (left: sky-400 → right: sky-200).
 
     Safe to embed inside any ``st.*`` call that accepts
     ``unsafe_allow_html=True``.
     """
     return (
         f'<span style="'
-        f"background: linear-gradient(90deg, #7dd3fc, #0369a1);"
+        f"background: linear-gradient(90deg, #38bdf8, #7dd3fc);"
         f"-webkit-background-clip: text;"
         f"-webkit-text-fill-color: transparent;"
         f'background-clip: text;">'
@@ -166,7 +166,7 @@ st.set_page_config(
 # Global CSS: apply the sky-blue gradient to expander headers and button labels.
 # These components don't accept unsafe_allow_html in their label args, so we
 # target Streamlit's internal data-testid selectors instead.
-_GRADIENT = "linear-gradient(90deg, #7dd3fc, #0369a1)"
+_GRADIENT = "linear-gradient(90deg, #38bdf8, #7dd3fc)"
 st.markdown(
     f"""
     <style>
@@ -237,10 +237,10 @@ if LOGO_PATH.exists():
         unsafe_allow_html=True,
     )
 
-st.markdown(f"# {grad('[')} {grad('Vector_Pathfinder')} {grad(']')}", unsafe_allow_html=True)
+st.markdown(f"# <span style='color:#38bdf8;opacity:0.8;'>[</span> {grad('Vector_Pathfinder')} <span style='color:#38bdf8;opacity:0.8;'>]</span>", unsafe_allow_html=True)
 if settings.demo_mode:
     st.caption(
-        f"SYSTEM_STATUS: {grad('DEMO_MODE')} // DATA_SOURCE: recorded_fixtures",
+        f"System_Status: {grad('Demo_Mode')} // Data_Source: recorded_fixtures",
         unsafe_allow_html=True,
     )
     st.info(
@@ -250,7 +250,7 @@ if settings.demo_mode:
     )
 else:
     st.caption(
-        f"SYSTEM_STATUS: {grad('ALL_SYSTEMS_OPERATIONAL')} // ARCHITECTURE: END_TO_END_DEPLOYMENT",
+        f"System_Status: {grad('All_Systems_Operational')} // Architecture: End_To_End_Deployment",
         unsafe_allow_html=True,
     )
 
@@ -510,7 +510,7 @@ if "df" in st.session_state:
         m3.metric("AVG_SCORE", f"{scored['overall_fit'].mean():.1f}" if len(scored) else "—")
         m4.metric("CORP_DIVERSITY", int(df["company"].nunique()))
 
-        st.markdown(f"### {grad('[')} {grad('HIGH_PRIORITY_MATCHES')} {grad(']')}", unsafe_allow_html=True)
+        st.markdown(f"### <span style='color:#38bdf8;opacity:0.8;'>[</span> {grad('HIGH_PRIORITY_MATCHES')} <span style='color:#38bdf8;opacity:0.8;'>]</span>", unsafe_allow_html=True)
 
         st.dataframe(
             table_df,
@@ -528,7 +528,7 @@ if "df" in st.session_state:
             hide_index=True,
         )
 
-        st.markdown(f"### {grad('[')} {grad('TECHNICAL_ANALYSIS_LOG')} {grad(']')}", unsafe_allow_html=True)
+        st.markdown(f"### <span style='color:#38bdf8;opacity:0.8;'>[</span> {grad('TECHNICAL_ANALYSIS_LOG')} <span style='color:#38bdf8;opacity:0.8;'>]</span>", unsafe_allow_html=True)
         for _, row in df_sorted.head(5).iterrows():
             with st.expander(
                 f"MATCH_{row['overall_fit']} // {row['job_title']} // {row['company']}"
