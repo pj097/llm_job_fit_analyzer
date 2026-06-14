@@ -185,6 +185,20 @@ st.markdown(
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }}
+    /* Logo glow — matches website .animate-data + @keyframes data-pulse */
+    @keyframes data-pulse {{
+        0%, 100% {{
+            filter: drop-shadow(0 0 2px #0ea5e9) drop-shadow(0 0 5px rgba(14, 165, 233, 0.3));
+            opacity: 0.8;
+        }}
+        50% {{
+            filter: drop-shadow(0 0 15px #0ea5e9) drop-shadow(0 0 30px rgba(14, 165, 233, 0.2));
+            opacity: 1;
+        }}
+    }}
+    .logo-glow {{
+        animation: data-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -233,7 +247,7 @@ if LOGO_PATH.exists():
     st.sidebar.markdown(
         f'<a href="https://vectorfoundry.co.uk" target="_blank">'
         f'<img src="data:image/svg+xml;base64,{_logo_b64}" width="100"'
-        f' style="transform: scaleX(-1);"/>'
+        f' class="logo-glow" style="transform: scaleX(-1);"/>'
         f'</a>',
         unsafe_allow_html=True,
     )
