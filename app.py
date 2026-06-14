@@ -15,6 +15,13 @@ from services.scraping import JobScraper
 LOGO_PATH = Path(__file__).parent / "static" / "logo.svg"
 FLOW_MMD = Path(__file__).parent / "static" / "flow.mmd"
 
+st.set_page_config(
+    page_title="Vector Foundry | Analyzer",
+    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else None,
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
 # One-paragraph plain-English summary, reused in the README. Deliberately
 # generic (no provider names) so it stays accurate as scrapers/models change.
 HOW_IT_WORKS = (
@@ -119,14 +126,14 @@ def order_table_columns(available) -> list[str]:
 
 
 def grad(text: str) -> str:
-    """Wrap *text* in a sky-blue gradient span (left: sky-300 → right: sky-700).
+    """Wrap *text* in a sky-blue gradient span (left: sky-400 → right: sky-200).
 
     Safe to embed inside any ``st.*`` call that accepts
     ``unsafe_allow_html=True``.
     """
     return (
         f'<span style="'
-        f"background: linear-gradient(90deg, #7dd3fc, #0369a1);"
+        f"background: linear-gradient(90deg, #38bdf8, #7dd3fc);"
         f"-webkit-background-clip: text;"
         f"-webkit-text-fill-color: transparent;"
         f'background-clip: text;">'
@@ -156,17 +163,10 @@ def fetch_locations(term: str, limit: int = 15) -> list[str]:
         return []
 
 
-st.set_page_config(
-    page_title="Vector Foundry | Analyzer",
-    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else None,
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
 # Global CSS: apply the sky-blue gradient to expander headers and button labels.
 # These components don't accept unsafe_allow_html in their label args, so we
 # target Streamlit's internal data-testid selectors instead.
-_GRADIENT = "linear-gradient(90deg, #7dd3fc, #0369a1)"
+_GRADIENT = "linear-gradient(90deg, #38bdf8, #7dd3fc)"
 st.markdown(
     f"""
     <style>
@@ -184,6 +184,20 @@ st.markdown(
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+    }}
+    /* Logo glow — matches website .animate-data + @keyframes data-pulse */
+    @keyframes data-pulse {{
+        0%, 100% {{
+            filter: drop-shadow(0 0 2px #0ea5e9) drop-shadow(0 0 5px rgba(14, 165, 233, 0.3));
+            opacity: 0.8;
+        }}
+        50% {{
+            filter: drop-shadow(0 0 15px #0ea5e9) drop-shadow(0 0 30px rgba(14, 165, 233, 0.2));
+            opacity: 1;
+        }}
+    }}
+    .logo-glow {{
+        animation: data-pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     }}
     </style>
     """,
@@ -232,15 +246,16 @@ if LOGO_PATH.exists():
     _logo_b64 = base64.b64encode(LOGO_PATH.read_bytes()).decode()
     st.sidebar.markdown(
         f'<a href="https://vectorfoundry.co.uk" target="_blank">'
-        f'<img src="data:image/svg+xml;base64,{_logo_b64}" width="100"/>'
+        f'<img src="data:image/svg+xml;base64,{_logo_b64}" width="100"'
+        f' class="logo-glow" style="transform: scaleX(-1);"/>'
         f'</a>',
         unsafe_allow_html=True,
     )
 
-st.markdown(f"# [ {grad('Vector_Pathfinder')} ]", unsafe_allow_html=True)
+st.markdown(f"# <span style='color:#38bdf8;opacity:0.8;'>[</span> {grad('Vector_Pathfinder')} <span style='color:#38bdf8;opacity:0.8;'>]</span>", unsafe_allow_html=True)
 if settings.demo_mode:
     st.caption(
-        f"SYSTEM_STATUS: {grad('DEMO_MODE')} // DATA_SOURCE: recorded_fixtures",
+        f"System_Status: {grad('Demo_Mode')} // Data_Source: recorded_fixtures",
         unsafe_allow_html=True,
     )
     st.info(
@@ -250,7 +265,7 @@ if settings.demo_mode:
     )
 else:
     st.caption(
-        f"SYSTEM_STATUS: {grad('ALL_SYSTEMS_OPERATIONAL')} // ARCHITECTURE: END_TO_END_DEPLOYMENT",
+        f"System_Status: {grad('All_Systems_Operational')} // Architecture: End_To_End_Deployment",
         unsafe_allow_html=True,
     )
 
@@ -510,7 +525,7 @@ if "df" in st.session_state:
         m3.metric("AVG_SCORE", f"{scored['overall_fit'].mean():.1f}" if len(scored) else "—")
         m4.metric("CORP_DIVERSITY", int(df["company"].nunique()))
 
-        st.markdown(f"### [ {grad('HIGH_PRIORITY_MATCHES')} ]", unsafe_allow_html=True)
+        st.markdown(f"### <span style='color:#38bdf8;opacity:0.8;'>[</span> {grad('HIGH_PRIORITY_MATCHES')} <span style='color:#38bdf8;opacity:0.8;'>]</span>", unsafe_allow_html=True)
 
         st.dataframe(
             table_df,
@@ -528,7 +543,7 @@ if "df" in st.session_state:
             hide_index=True,
         )
 
-        st.markdown(f"### [ {grad('TECHNICAL_ANALYSIS_LOG')} ]", unsafe_allow_html=True)
+        st.markdown(f"### <span style='color:#38bdf8;opacity:0.8;'>[</span> {grad('TECHNICAL_ANALYSIS_LOG')} <span style='color:#38bdf8;opacity:0.8;'>]</span>", unsafe_allow_html=True)
         for _, row in df_sorted.head(5).iterrows():
             with st.expander(
                 f"MATCH_{row['overall_fit']} // {row['job_title']} // {row['company']}"
