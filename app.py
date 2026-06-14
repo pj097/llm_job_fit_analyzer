@@ -237,7 +237,7 @@ if LOGO_PATH.exists():
         unsafe_allow_html=True,
     )
 
-st.markdown(f"# [ {grad('Vector_Pathfinder')} ]", unsafe_allow_html=True)
+st.markdown(f"# {grad('[')} {grad('Vector_Pathfinder')} {grad(']')}", unsafe_allow_html=True)
 if settings.demo_mode:
     st.caption(
         f"SYSTEM_STATUS: {grad('DEMO_MODE')} // DATA_SOURCE: recorded_fixtures",
@@ -510,7 +510,7 @@ if "df" in st.session_state:
         m3.metric("AVG_SCORE", f"{scored['overall_fit'].mean():.1f}" if len(scored) else "—")
         m4.metric("CORP_DIVERSITY", int(df["company"].nunique()))
 
-        st.markdown(f"### [ {grad('HIGH_PRIORITY_MATCHES')} ]", unsafe_allow_html=True)
+        st.markdown(f"### {grad('[')} {grad('HIGH_PRIORITY_MATCHES')} {grad(']')}", unsafe_allow_html=True)
 
         st.dataframe(
             table_df,
@@ -528,7 +528,7 @@ if "df" in st.session_state:
             hide_index=True,
         )
 
-        st.markdown(f"### [ {grad('TECHNICAL_ANALYSIS_LOG')} ]", unsafe_allow_html=True)
+        st.markdown(f"### {grad('[')} {grad('TECHNICAL_ANALYSIS_LOG')} {grad(']')}", unsafe_allow_html=True)
         for _, row in df_sorted.head(5).iterrows():
             with st.expander(
                 f"MATCH_{row['overall_fit']} // {row['job_title']} // {row['company']}"
