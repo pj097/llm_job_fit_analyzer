@@ -47,6 +47,11 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         secrets_dir=getenv("SECRETS_DIR", "/run/secrets"),
+        # Treat a blank value in .env (e.g. `LLM_API_KEY=`) as unset rather than an
+        # empty string. Without this, a blank placeholder would *shadow* a secret
+        # injected via secrets_dir (podman/docker secrets at /run/secrets), since
+        # dotenv outranks the secrets source — so the injected key would be ignored.
+        env_ignore_empty=True,
     )
 
 

@@ -1,6 +1,6 @@
 # LLM Job Fit Analyzer
 
-An intelligent job search assistant that scrapes job advertisements and uses **LLMs (Gemini & Ollama)** to score them against your unique career profile. It features local caching to save costs and an incremental-save mechanism to prevent data loss.
+An intelligent job search assistant that scrapes job advertisements and uses **any OpenAI-compatible LLM (local or cloud)** to score them against your unique career profile. It features local caching to save costs and an incremental-save mechanism to prevent data loss.
 
 Why I built this:
 
@@ -12,7 +12,7 @@ To entirely automate the job search process. This tool is intended to shortlist 
 
 ## Features
 
-- **Hybrid LLM Support:** Switch between local models (Ollama) and cloud models (Gemini).
+- **Any OpenAI-compatible LLM:** Point it at a local server (llama.cpp/llama-swap, Ollama) or a cloud API (OpenAI, OpenRouter, Gemini's OpenAI endpoint) — switching engine is config, not code.
 - **Smart Caching:** Local JSON caching avoids re-scoring jobs you've already analyzed (0ms latency for known jobs).
 - **URL Normalization:** Automatically strips tracking parameters (UTM tags, trk IDs) to ensure stable cache hits.
 - **Incremental Saving:** Updates your local database after every successful score to protect against crashes.
@@ -55,9 +55,8 @@ This project uses [uv](https://docs.astral.sh/uv/).
 ### Prerequisites
 
 - **Python 3.14+**
-- **Ollama** (if running models locally)
+- **An OpenAI-compatible LLM endpoint** — local (e.g. [llama.cpp](https://github.com/ggml-org/llama.cpp) / [llama-swap](https://github.com/mostlygeek/llama-swap), [Ollama](https://ollama.com)) or a cloud API (OpenAI, OpenRouter, Gemini's OpenAI endpoint, ...)
 - **SerpApi Key** (for Google Jobs scraping — only needed for live scrapes)
-- **Gemini API Key** (if using Gemini instead of Ollama)
 
 ### Install & run
 
@@ -69,34 +68,62 @@ uv sync
 uv run streamlit run app.py --server.headless true --server.address=127.0.0.1
 ```
 
-### `.env` template
+### Configuration (`.env`)
+
+Configuration lives in a gitignored `.env` (also `.dockerignore`d, so it's never
+baked into an image). Any value can equally be supplied as an environment variable or
+a secret file — see [Secrets](#secrets) for the recommended way to handle keys.
 
 ```bash
-# --- General Settings ---
 DEBUG=false
-PROMPT_FILE=.prompt.txt
 
-# --- LLM Provider Configuration ---
-DEFAULT_PROVIDER=ollama
-DEFAULT_MODEL=gemma4:12b
+# LLM — any OpenAI-compatible /v1 endpoint. Switching engine = change these three.
+#   llama-swap (local):  http://localhost:8080/v1   (see deploy/llama-swap)
+#   Ollama (local):      http://localhost:11434/v1
+#   cloud:               e.g. https://api.openai.com/v1  (set a real LLM_API_KEY)
+LLM_BASE_URL=http://localhost:8080/v1
+# Blank = none, for local servers that don't authenticate. Set a real key for cloud.
+# (Better: leave blank here and inject it as a secret — see below.)
+LLM_API_KEY=
+# Blank = use the first model the endpoint serves (/v1/models). For llama-swap this
+# must match a key in its config.yaml.
+LLM_MODEL=gemma4:12b
 DEFAULT_TEMPERATURE=1.0
 MAX_ATTEMPTS=5
 
-# Gemini Settings (cloud)
-# Get your key at: https://aistudio.google.com/
-GEMINI_API_KEY=YOUR_GEMINI_API_KEY_HERE
-GEMINI_DEFAULT_MODEL=gemini-3.5-flash
-
-# --- Scraping Configuration ---
-# Get your key at: https://serpapi.com/
-SERPAPI_KEY=YOUR_SERP_API_KEY_HERE
+# Job scraping (SerpApi google_jobs) — required to aggregate jobs.
+# Get a key at https://serpapi.com/  (leave blank here; inject as a secret)
+SERPAPI_KEY=
 DEFAULT_SEARCH_PAGES=8
 USE_LAST_SCRAPE=true
+# Engine/language/country defaults (JSON); query + location are set in the app UI.
+GOOGLE_SEARCH_PARAMS='{"engine": "google_jobs", "hl": "en", "gl": "uk"}'
 
-# Search engine config (JSON format). The search query and location are set
-# in the app UI; only the engine/language/country defaults live here.
-GOOGLE_SEARCH_PARAMS='{"engine": "google_jobs", "hl": "en", "gl": "YOUR DOMAIN HERE"}'
+PROMPT_FILE=.prompt.txt
 ```
+
+### Secrets
+
+Keep real secrets (`LLM_API_KEY`, `SERPAPI_KEY`) out of `.env` and inject them at
+runtime. The app reads file-based secrets from `SECRETS_DIR` (default `/run/secrets`),
+so **podman / docker secrets** work with no extra config — the secret name just has to
+match the setting:
+
+```bash
+# Store the key once (here piped from a password manager rather than typed/echoed)
+pass show serpapi/key | podman secret create serpapi_key -
+
+podman run --rm -p 8501:8501 \
+  --secret serpapi_key \
+  --secret llm_api_key \   # only if your LLM endpoint is an authenticated cloud API
+  job-analyzer:latest
+```
+
+A **blank** key in `.env` (e.g. `LLM_API_KEY=`) is treated as *unset* and falls
+through to the injected secret — it will not shadow it. For local development, pipe a
+key straight from a password manager (`pass`, `op`, ...) into `podman secret create`,
+or export it as a shell env var for a quick `uv run` — either keeps secrets off disk
+and out of git.
 
 The search query, location (typeahead against SerpApi's Locations API), title
 keyword exclusions, and the scoring prompt are all set in the app's sidebar — no
@@ -161,7 +188,7 @@ You are a Lead Technical Headhunter specializing in [YOUR_FIELDS_OF_CHOICE_HERE]
 
 ## Demo Mode (record & replay)
 
-The app can run as a fully self-contained demo — no API keys, no Ollama, no network.
+The app can run as a fully self-contained demo — no API keys, no LLM server, no network.
 All external interactions are replayed from recorded fixtures in `demo/fixtures/`.
 
 | Setting | Effect |
