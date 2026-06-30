@@ -64,6 +64,29 @@ class JobScorer:
             from llm.ollama import OllamaProvider
 
             self.llm = OllamaProvider(model=self.model_name, temperature=self.temp)
+        elif self.provider_name == "llama":
+            from llm.openai_compat import OpenAICompatProvider
+
+            self.llm = OpenAICompatProvider(
+                model=self.model_name,
+                temperature=self.temp,
+                base_url=settings.llama_base_url,
+                api_key="none",
+                label="llama",
+            )
+        elif self.provider_name == "openai":
+            from llm.openai_compat import OpenAICompatProvider
+
+            api_key = self.api_key or (
+                settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
+            )
+            self.llm = OpenAICompatProvider(
+                model=settings.openai_default_model or self.model_name,
+                temperature=self.temp,
+                base_url=settings.openai_base_url,
+                api_key=api_key,
+                label="openai",
+            )
         elif self.provider_name == "gemini":
             from llm.gemini import GeminiProvider
 

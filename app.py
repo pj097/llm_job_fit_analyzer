@@ -356,14 +356,19 @@ with st.sidebar.expander("NEURAL_RUNTIME"):
         st.selectbox("Provider", options=[_demo_provider], disabled=True)
         st.selectbox("Model Selection", options=[_demo_model], disabled=True)
         st.slider("Temperature", 0.0, 1.5, 0.1, disabled=True)
-        provider = model = gemini_api_key = temperature = None
+        provider = model = api_key = temperature = None
     else:
         provider = st.selectbox(
             "Provider",
-            options=["ollama", "gemini"],
-            help="ollama runs models locally on your machine. gemini uses Google's cloud API.",
+            options=["ollama", "llama", "gemini", "openai"],
+            help=(
+                "ollama / llama run models locally (llama = an OpenAI-compatible "
+                "llama.cpp server). gemini and openai are cloud APIs — openai is any "
+                "OpenAI-compatible endpoint, configured via OPENAI_* env vars."
+            ),
         )
 
+        api_key = None
         if provider == "ollama":
             import ollama
 
@@ -395,10 +400,45 @@ with st.sidebar.expander("NEURAL_RUNTIME"):
                     except Exception as e:
                         st.error(f"OLLAMA_OFFLINE // {e}")
                 st.stop()
-            gemini_api_key = None
-        else:
+        elif provider == "llama":
+            import requests
+
+            st.caption(f"Endpoint: {settings.llama_base_url}")
+            # llama-swap's /v1/models lists exactly the models in its config.yaml, so
+            # the dropdown mirrors the served catalogue (same idea as ollama.list()).
+            try:
+                resp = requests.get(f"{settings.llama_base_url.rstrip('/')}/models", timeout=3)
+                resp.raise_for_status()
+                available_models = [m["id"] for m in resp.json().get("data", [])]
+            except Exception as e:
+                st.warning(f"LLAMA_OFFLINE // {e}")
+                available_models = []
+
+            if available_models:
+                model = st.selectbox(
+                    "Model Selection",
+                    available_models,
+                    accept_new_options=True,
+                    help="Models served by llama-swap (its config.yaml). Type one to override.",
+                )
+            else:
+                # Endpoint unreachable — free text so the sidebar still works offline.
+                model = st.text_input("Model", value=settings.default_model)
+        elif provider == "gemini":
             model = st.selectbox("Model", [settings.gemini_default_model])
-            gemini_api_key = st.text_input("API Key", type="password")
+            api_key = st.text_input("API Key", type="password")
+        else:  # openai — any OpenAI-compatible cloud endpoint
+            st.caption(f"Endpoint: {settings.openai_base_url or 'set OPENAI_BASE_URL'}")
+            model = st.text_input(
+                "Model",
+                value=settings.openai_default_model,
+                help="Model id for your cloud endpoint, e.g. gpt-4o-mini.",
+            )
+            api_key = st.text_input(
+                "API Key",
+                type="password",
+                help="Leave blank to use OPENAI_API_KEY from the environment.",
+            )
 
         temperature = st.slider("Temperature", 0.0, 1.5, 0.1)
 
@@ -481,7 +521,7 @@ with col2:
                     provider=provider,
                     model=model,
                     temperature=temperature,
-                    api_key=gemini_api_key,
+                    api_key=api_key,
                     prompt=prompt,
                     query=search_query,
                     location=search_location,
