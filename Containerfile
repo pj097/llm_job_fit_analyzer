@@ -18,5 +18,11 @@ COPY . .
 
 RUN uv sync --all-extras --group screenshot
 
+# Brand the Streamlit shell favicon (see Containerfile.demo for the why): overwrite the
+# default favicon.png the static index.html serves before the app runs, so the cold-load
+# flash and bookmark icon are the brand mark, not Streamlit's. Tracks the python:3.14 base.
+COPY static/favicon.png \
+     /home/.venv/lib/python3.14/site-packages/streamlit/static/favicon.png
+
 EXPOSE 8501
 ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]

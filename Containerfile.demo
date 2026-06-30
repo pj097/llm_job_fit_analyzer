@@ -35,6 +35,14 @@ COPY .streamlit/ ./.streamlit/
 COPY demo/fixtures/ ./demo/fixtures/
 COPY static/ ./static/
 
+# Overwrite Streamlit's shell favicon with the brand icon (as root, before the USER
+# switch). Streamlit's static index.html hardcodes <link rel="shortcut icon"
+# href="./favicon.png"> served before the app runs, so st.set_page_config(page_icon=…)
+# only swaps the tab icon post-load via JS — leaving a Streamlit-logo flash on cold load
+# and a Streamlit icon in bookmarks. Dest path tracks the pinned python:3.14 base.
+COPY static/favicon.png \
+     /home/.venv/lib/python3.14/site-packages/streamlit/static/favicon.png
+
 # Run as an unprivileged user: this image is deployed publicly and serves
 # only static fixtures, so it never needs root.
 RUN useradd --create-home --uid 10001 appuser
