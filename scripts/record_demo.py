@@ -223,7 +223,7 @@ def main() -> int:
 
     # 6. Sanitize: fail if any configured secret leaked into a fixture
     blob = "".join(p.read_text() for p in settings.fixtures_dir.glob("*.json"))
-    for name in ("serpapi_key", "gemini_api_key"):
+    for name in ("serpapi_key", "llm_api_key"):
         secret_field = getattr(settings, name)
         secret = secret_field.get_secret_value() if secret_field else None
         if secret and secret in blob:

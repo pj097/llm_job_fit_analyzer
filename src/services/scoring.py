@@ -28,10 +28,10 @@ def derive_job_url(job: dict) -> str:
 class JobScorer:
     def __init__(
         self,
-        provider: str | None = None,
         model: str | None = None,
         temperature: float | None = None,
         api_key: str | None = None,
+        base_url: str | None = None,
         prompt: str | None = None,
         query: str | None = None,
         location: str | None = None,
@@ -51,54 +51,30 @@ class JobScorer:
                 self.scored_data = raw
             return
 
-        self.provider_name = provider or settings.default_provider
-        self.model_name = model or settings.default_model
         self.temp = temperature if temperature is not None else settings.default_temperature
         self.api_key = api_key or (
-            settings.gemini_api_key.get_secret_value() if settings.gemini_api_key else None
+            settings.llm_api_key.get_secret_value() if settings.llm_api_key else None
         )
 
-        # 1. Initialize LLM Provider
-        # Imported lazily so the unused provider's dependencies never load.
-        if self.provider_name == "ollama":
-            from llm.ollama import OllamaProvider
+        # 1. Initialize the LLM — any OpenAI-compatible endpoint (engine = config).
+        from llm.openai_compat import OpenAICompatProvider
 
-            self.llm = OllamaProvider(model=self.model_name, temperature=self.temp)
-        elif self.provider_name == "llama":
-            from llm.openai_compat import OpenAICompatProvider
+        self.llm = OpenAICompatProvider(
+            base_url=base_url or settings.llm_base_url,
+            model=model or (settings.llm_model or None),
+            temperature=self.temp,
+            api_key=self.api_key,
+        )
+        # Resolved by the provider (model may have been picked from /v1/models).
+        self.model_name = self.llm.model_name
+        # Endpoint host:port — the discriminator for the cache + demo runtime readout.
+        self.endpoint = self.llm.name
 
-            self.llm = OpenAICompatProvider(
-                model=self.model_name,
-                temperature=self.temp,
-                base_url=settings.llama_base_url,
-                api_key="none",
-                label="llama",
-            )
-        elif self.provider_name == "openai":
-            from llm.openai_compat import OpenAICompatProvider
-
-            api_key = self.api_key or (
-                settings.openai_api_key.get_secret_value() if settings.openai_api_key else None
-            )
-            self.llm = OpenAICompatProvider(
-                model=settings.openai_default_model or self.model_name,
-                temperature=self.temp,
-                base_url=settings.openai_base_url,
-                api_key=api_key,
-                label="openai",
-            )
-        elif self.provider_name == "gemini":
-            from llm.gemini import GeminiProvider
-
-            self.llm = GeminiProvider(
-                model=self.model_name, api_key=self.api_key, temperature=self.temp
-            )
-        else:
-            raise ValueError(f"Unknown provider: {self.provider_name}")
-
-        # 2. Local Result Caching (Save Money)
+        # 2. Local Result Caching (Save Money). Keyed on endpoint + model so scores
+        # from different engines/models never mix.
         clean_model_name = re.sub(r"[^a-zA-Z0-9_\-]", "_", self.model_name)
-        cache_filename = f"scored_cache_{self.provider_name}_{clean_model_name}.json"
+        clean_endpoint = re.sub(r"[^a-zA-Z0-9_\-]", "_", self.endpoint)
+        cache_filename = f"scored_cache_{clean_endpoint}_{clean_model_name}.json"
 
         self.local_db_path = Path("data") / cache_filename
         self.local_db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,7 +109,7 @@ class JobScorer:
                 json.dump(
                     {
                         "_meta": {
-                            "provider": self.provider_name,
+                            "provider": self.endpoint,
                             "model": self.model_name,
                             "prompt": self.prompt_template,
                             "query": self.query,

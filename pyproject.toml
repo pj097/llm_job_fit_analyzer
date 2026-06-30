@@ -24,17 +24,14 @@ dependencies = [
   "pandas",
   "pydantic-settings",
   "requests",
+  # The LLM client — one OpenAI-compatible path for every engine (local or cloud).
+  "langchain-openai",
 ]
 
 [project.optional-dependencies]
-ollama = ["langchain-ollama"]
-openai = [
-    "langchain-openai",
-]
-gemini = ["google-genai"]
 scraping = ["serpapi", "beautifulsoup4"]
 full = [
-  "llm-job-fit-analyzer[ollama,openai,gemini,scraping]",
+  "llm-job-fit-analyzer[scraping]",
 ]
 
 [build-system]

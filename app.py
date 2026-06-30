@@ -353,94 +353,48 @@ with st.sidebar.expander("MODEL_GUIDE"):
 
 with st.sidebar.expander("NEURAL_RUNTIME"):
     if settings.demo_mode:
-        st.selectbox("Provider", options=[_demo_provider], disabled=True)
-        st.selectbox("Model Selection", options=[_demo_model], disabled=True)
+        st.text_input("Endpoint", value=_demo_provider, disabled=True)
+        st.selectbox("Model", options=[_demo_model], disabled=True)
         st.slider("Temperature", 0.0, 1.5, 0.1, disabled=True)
-        provider = model = api_key = temperature = None
+        model = api_key = temperature = None
     else:
-        provider = st.selectbox(
-            "Provider",
-            options=["ollama", "llama", "gemini", "openai"],
-            help=(
-                "ollama / llama run models locally (llama = an OpenAI-compatible "
-                "llama.cpp server). gemini and openai are cloud APIs — openai is any "
-                "OpenAI-compatible endpoint, configured via OPENAI_* env vars."
-            ),
-        )
+        from llm.openai_compat import list_models
 
-        api_key = None
-        if provider == "ollama":
-            import ollama
-
-            try:
-                available_models = [m["model"] for m in ollama.list().get("models", [])]
-            except Exception as e:
-                st.warning(f"OLLAMA_OFFLINE // {e}")
-                available_models = []
-            display_options = available_models if available_models else ["No models found"]
-            model = st.selectbox("Model Selection", display_options, accept_new_options=True)
-
-            if model not in available_models and model != "No models found":
-                if st.button(f"Initialize {model}"):
-                    try:
-                        with st.status("Downloading...", expanded=True):
-                            ollama.pull(model)
-                        st.rerun()
-                    except ollama.ResponseError as e:
-                        # Most common cause: the local Ollama is too old for a
-                        # newer model's manifest. Surface the upgrade hint
-                        # instead of crashing the app.
-                        if "newer version" in str(e).lower() or e.status_code == 412:
-                            st.error(
-                                f"PULL_FAILED // '{model}' needs a newer Ollama. "
-                                "Update it from https://ollama.com/download, then retry."
-                            )
-                        else:
-                            st.error(f"PULL_FAILED // {e}")
-                    except Exception as e:
-                        st.error(f"OLLAMA_OFFLINE // {e}")
-                st.stop()
-        elif provider == "llama":
-            import requests
-
-            st.caption(f"Endpoint: {settings.llama_base_url}")
-            # llama-swap's /v1/models lists exactly the models in its config.yaml, so
-            # the dropdown mirrors the served catalogue (same idea as ollama.list()).
-            try:
-                resp = requests.get(f"{settings.llama_base_url.rstrip('/')}/models", timeout=3)
-                resp.raise_for_status()
-                available_models = [m["id"] for m in resp.json().get("data", [])]
-            except Exception as e:
-                st.warning(f"LLAMA_OFFLINE // {e}")
-                available_models = []
-
-            if available_models:
-                model = st.selectbox(
-                    "Model Selection",
-                    available_models,
-                    accept_new_options=True,
-                    help="Models served by llama-swap (its config.yaml). Type one to override.",
-                )
-            else:
-                # Endpoint unreachable — free text so the sidebar still works offline.
-                model = st.text_input("Model", value=settings.default_model)
-        elif provider == "gemini":
-            model = st.selectbox("Model", [settings.gemini_default_model])
-            api_key = st.text_input("API Key", type="password")
-        else:  # openai — any OpenAI-compatible cloud endpoint
-            st.caption(f"Endpoint: {settings.openai_base_url or 'set OPENAI_BASE_URL'}")
-            model = st.text_input(
-                "Model",
-                value=settings.openai_default_model,
-                help="Model id for your cloud endpoint, e.g. gpt-4o-mini.",
-            )
-            api_key = st.text_input(
+        # One OpenAI-compatible endpoint (LLM_BASE_URL): llama.cpp/llama-swap, Ollama,
+        # or any cloud API. Switching engine is config, not a provider toggle.
+        st.caption(f"Endpoint: {settings.llm_base_url}")
+        api_key = (
+            st.text_input(
                 "API Key",
                 type="password",
-                help="Leave blank to use OPENAI_API_KEY from the environment.",
+                help="Blank uses LLM_API_KEY from the environment (or none for local servers).",
             )
+            or None
+        )
+        key = api_key or (
+            settings.llm_api_key.get_secret_value() if settings.llm_api_key else None
+        )
 
-        temperature = st.slider("Temperature", 0.0, 1.5, 0.1)
+        # /v1/models lists what the endpoint actually serves, so the picker mirrors
+        # the catalogue uniformly (llama-swap's config.yaml, Ollama's installs, ...).
+        try:
+            available_models = list_models(settings.llm_base_url, key)
+        except Exception as e:
+            st.warning(f"LLM_OFFLINE // {e}")
+            available_models = []
+
+        if available_models:
+            model = st.selectbox(
+                "Model",
+                available_models,
+                accept_new_options=True,
+                help="Models served at the endpoint (/v1/models). Type one to override.",
+            )
+        else:
+            # Endpoint unreachable — free text so the sidebar still works offline.
+            model = st.text_input("Model", value=settings.llm_model)
+
+        temperature = st.slider("Temperature", 0.0, 1.5, settings.default_temperature)
 
 with st.sidebar.expander("ANALYSIS_PROMPT"):
     if settings.demo_mode:
@@ -518,7 +472,6 @@ with col2:
                     )
 
                 scorer = JobScorer(
-                    provider=provider,
                     model=model,
                     temperature=temperature,
                     api_key=api_key,

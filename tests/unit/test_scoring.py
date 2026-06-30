@@ -49,7 +49,7 @@ def test_cache_hit_and_null_key(tmp_path, mocker, monkeypatch):
     mocker.patch("config.settings.settings.prompt_file", str(prompt_file))
 
     # Create a fake scorer and cache
-    scorer = JobScorer(provider="ollama", model="fake-model")
+    scorer = JobScorer(model="fake-model")
     scorer.scored_data = {
         "https://example.com/job1": {"job_url": "https://example.com/job1", "overall_fit": 9}
     }
@@ -96,7 +96,7 @@ def test_result_cb_streams_each_scored_job(tmp_path, mocker, monkeypatch):
     prompt_file.write_text("Score this job.")
     mocker.patch("config.settings.settings.prompt_file", str(prompt_file))
 
-    scorer = JobScorer(provider="ollama", model="fake-model")
+    scorer = JobScorer(model="fake-model")
     scorer.scored_data = {
         "https://example.com/job1": {"job_url": "https://example.com/job1", "overall_fit": 9}
     }
@@ -128,7 +128,7 @@ def test_exclude_keywords_drops_matching_titles(tmp_path, mocker, monkeypatch):
     prompt_file.write_text("Score this job.")
     mocker.patch("config.settings.settings.prompt_file", str(prompt_file))
 
-    scorer = JobScorer(provider="ollama", model="fake-model")
+    scorer = JobScorer(model="fake-model")
     mock_llm = mocker.Mock()
     mock_llm.generate.return_value = '{"overall_fit": 5}'
     scorer.llm = mock_llm

@@ -1,55 +1,67 @@
+from urllib.parse import urlparse
+
+import requests
 from langchain_openai import ChatOpenAI
 from pydantic import SecretStr
 
 from llm.base import BaseLLM
 
 
-class OpenAICompatProvider(BaseLLM):
-    """Any OpenAI-compatible `/v1` endpoint, driven through LangChain's ChatOpenAI.
+def list_models(base_url: str, api_key: str | None = None, timeout: float = 3.0) -> list[str]:
+    """Model ids served at an OpenAI-compatible endpoint (its `/v1/models`).
 
-    The engine is a config choice, not a code branch: local llama.cpp's
-    `llama-server` (authenticates with nothing, hence api_key "none") and any cloud
-    OpenAI-compatible API (OpenAI, OpenRouter, Together, Groq, ...; real key) are the
-    same client with a different base_url / key / model. `response_format`
-    json_object holds the scorer's JSON contract, mirroring the Ollama provider's
-    `format="json"`.
+    Works the same for every backend — llama.cpp/llama-swap, Ollama, OpenAI,
+    OpenRouter, ... — so the UI populates its model picker from one call.
+    """
+    headers = {"Authorization": f"Bearer {api_key}"} if api_key and api_key != "none" else {}
+    resp = requests.get(f"{base_url.rstrip('/')}/models", headers=headers, timeout=timeout)
+    resp.raise_for_status()
+    return [m["id"] for m in resp.json().get("data", [])]
+
+
+class OpenAICompatProvider(BaseLLM):
+    """The LLM provider: any OpenAI-compatible `/v1` endpoint.
+
+    There is no provider split — llama.cpp/llama-swap, Ollama (`:11434/v1`), and any
+    cloud OpenAI-compatible API (OpenAI, OpenRouter, Gemini's OpenAI endpoint, ...)
+    are the same client. The engine is pure config — `base_url` + `api_key` + `model`
+    — not a code branch. `response_format` json_object holds the scorer's JSON
+    contract; `temperature=0` (or as set) keeps scoring reproducible.
     """
 
     def __init__(
         self,
-        model: str,
-        temperature: float,
         base_url: str,
+        model: str | None = None,
+        temperature: float = 0.0,
         api_key: str | None = None,
-        label: str = "openai",
     ):
         if not base_url:
-            env = "LLAMA_BASE_URL" if label == "llama" else "OPENAI_BASE_URL"
             raise ValueError(
-                f"{label} provider needs a base URL. Set {env} to an "
-                "OpenAI-compatible /v1 endpoint."
+                "LLM_BASE_URL is not set — point it at an OpenAI-compatible /v1 endpoint."
             )
-        if not model:
-            raise ValueError(
-                f"{label} provider needs a model id "
-                "(set the model in the UI or OPENAI_DEFAULT_MODEL)."
-            )
-
-        self.model_name = model
+        self.base_url = base_url.rstrip("/")
+        # Model id: explicit wins; blank → the first model the endpoint serves.
+        self.model_name = model or self._first_served_model(api_key)
         self.temperature = temperature
-        self.base_url = base_url
-        self.name = f"{label}:{model}"
+        # Short label (endpoint host:port) for cache filenames + the demo readout.
+        self.name = urlparse(self.base_url).netloc or self.base_url
 
-        # Instantiated once so the connection/config is reused across the scoring loop.
         self.llm = ChatOpenAI(
-            model=model,
+            model=self.model_name,
             temperature=temperature,
-            base_url=base_url,
-            # llama-server authenticates with nothing, but the client still requires a
-            # non-empty key, hence "none". Cloud endpoints pass a real key here.
+            base_url=self.base_url,
+            # Local servers authenticate with nothing, but the client needs a
+            # non-empty key, hence "none". Cloud endpoints pass a real key.
             api_key=SecretStr(api_key or "none"),
             model_kwargs={"response_format": {"type": "json_object"}},
         )
+
+    def _first_served_model(self, api_key: str | None) -> str:
+        models = list_models(self.base_url, api_key)
+        if not models:
+            raise ValueError(f"no models served at {self.base_url}; set LLM_MODEL")
+        return models[0]
 
     def generate(self, prompt: str) -> str:
         """Generate a JSON response from the configured endpoint."""
